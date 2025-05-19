@@ -5,6 +5,8 @@ import numpy as np
 from environment import ChessEnv
 from model import ChessNet
 import config
+import os
+from collections import deque
 
 
 def train():
@@ -25,6 +27,9 @@ def train():
 
     optimizer = optim.Adam(policy_net.parameters(), lr=config.LR)
     criterion = nn.MSELoss()
+    losses = []
+    qs = []
+    recent_boards = deque(maxlen=10)
 
     for episode in range(config.NUM_EPISODES):
         print(f"Episode: {episode}")
@@ -54,15 +59,23 @@ def train():
 
             q_value = policy_net(torch.cat((action_tensor, state), dim=0).unsqueeze(0).float())
             loss = criterion(q_value, target.unsqueeze(0))
+            losses.append(loss.item())
+            qs.append(q_value.item())
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             state = next_state
+            recent_boards.append(env.board.copy())
 
         if episode % config.TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
+
+    # os.makedirs("pytorch-state-dictionaries", exist_ok=True)
+    # torch.save(policy_net.state_dict(), "pytorch-state-dictionaries/chessnet.pt")
+
+    return losses, qs, recent_boards
 
 if __name__ == "__main__":
     train()
